@@ -57,7 +57,7 @@ Java
 | WHITESPACE   | `[ \t\r\n]+`             | białe znaki                    |
 
 ## Gramatyka
-
+```bnf
 program ::= procedure_decl
 
 
@@ -155,8 +155,8 @@ factor ::=
     | FLOAT
     | "(" expression ")"
 
-
 RANGE ::= ".."
 
 ε ::= (empty)
+```
 
