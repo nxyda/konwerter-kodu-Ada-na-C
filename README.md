@@ -25,13 +25,13 @@ Java
 | BEGIN        | `"begin"`                | początek bloku instrukcji      |
 | END          | `"end"`                  | koniec bloku                   |
 | IF           | `"if"`                   | instrukcja warunkowa           |
-| THEN         | `"then"`                 | część warunku IF               |
-| ELSE         | `"else"`                 | alternatywa IF                 |
-| ELSIF        | `"elsif"`                | dodatkowy warunek IF           |
+| THEN         | `"then"`                 | część warunku if               |
+| ELSE         | `"else"`                 | alternatywa if                 |
+| ELSIF        | `"elsif"`                | dodatkowy warunek if           |
 | WHILE        | `"while"`                | pętla while                    |
 | LOOP         | `"loop"`                 | blok pętli                     |
 | FOR          | `"for"`                  | pętla for                      |
-| IN           | `"in"`                   | operator zakresu w FOR         |
+| IN           | `"in"`                   | operator zakresu w for         |
 | RETURN       | `"return"`               | zwrot wartości                 |
 | DECLARE      | `"declare"`              | sekcja deklaracji lokalnych    |
 | ASSIGN       | `":="`                   | przypisanie wartości           |
@@ -54,5 +54,5 @@ Java
 | INTEGER      | `[0-9]+`                 | liczba całkowita               |
 | FLOAT        | `[0-9]+\.[0-9]+`         | liczba zmiennoprzecinkowa      |
 | COMMENT      | `"--".*`                 | komentarz jednoliniowy         |
-| WHITESPACE   | `[ \t\r\n]+`             | białe znaki (ignorowane)       |
+| WHITESPACE   | `[ \t\r\n]+`             | białe znaki                    |
 
