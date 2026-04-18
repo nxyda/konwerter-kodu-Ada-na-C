@@ -17,7 +17,7 @@ Kod w języku C
 ### Planowany język implementacji
 Java
 
-### Tabela Tokenów
+## Tabela Tokenów
 | Nazwa tokenu | Regex / Definicja        | Opis                           |
 | ------------ | ------------------------ | ------------------------------ |
 | PROCEDURE    | `"procedure"`            | deklaracja procedury           |
