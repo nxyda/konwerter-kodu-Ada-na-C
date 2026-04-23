@@ -17,6 +17,9 @@ Kod w języku C
 ### Planowany język implementacji
 Java
 
+### Generator parsera
+ANTLR4
+
 ## Tabela Tokenów
 | Nazwa tokenu | Regex / Definicja        | Opis                           |
 | ------------ | ------------------------ | ------------------------------ |
