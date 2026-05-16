@@ -61,6 +61,18 @@ proc_statement
     | for_statement_proc
     ;
 
+func_statement_list
+    : func_statement+
+    ;
+
+func_statement
+    : assignment
+    | if_statement_func
+    | while_statement_func
+    | for_statement_func
+    | return_statement
+    ;
+
 assignment
     : lvalue ASSIGN expression SEMICOLON
     ;
@@ -104,6 +116,35 @@ for_statement_proc
     END LOOP SEMICOLON
     ;
 
+if_statement_func
+    : IF condition THEN
+        func_statement_list
+        else_part_func?
+    END IF SEMICOLON
+    ;
+
+else_part_func
+    : ELSE func_statement_list
+    | ELSIF condition THEN
+    func_statement_list
+    else_part_func
+    ;
+
+while_statement_func
+    : WHILE condition LOOP
+        func_statement_list
+    END LOOP SEMICOLON
+    ;
+
+for_statement_func
+    : FOR IDENTIFIER IN expression RANGE expression LOOP
+        func_statement_list
+    END LOOP SEMICOLON ;
+
+return_statement
+    : RETURN expression
+    SEMICOLON
+    ;
 
 condition
     : expression relational_op expression
