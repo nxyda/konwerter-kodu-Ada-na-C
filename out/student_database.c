@@ -1,6 +1,7 @@
 // Source: examples/student_database.adb
 #include <stdio.h>
 #include <stdbool.h>
+#include <stdlib.h>
 
 void Student_Database() {
     int num_students = 3;
@@ -10,4 +11,3 @@ void Student_Database() {
     }
     double avg_gpa = total_gpa / num_students;
 }
-

@@ -1,11 +1,10 @@
-// Source: examples/minimal.adb
+// Source: examples/test.adb
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
 
 int main() {
-    int x = 1;
-    int y = 2;
-    x = x + y;
+    int y = 0;
+    int x = 10 / y;
     return 0;
 }

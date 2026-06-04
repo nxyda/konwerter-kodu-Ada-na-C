@@ -1,16 +1,26 @@
 package org.example;
 
-import org.antlr.v4.runtime.*;
-import org.antlr.v4.runtime.tree.ParseTree;
-import org.antlr.v4.runtime.misc.ParseCancellationException;
-
 import java.io.IOException;
+import java.util.List;
+
+import org.antlr.v4.runtime.BailErrorStrategy;
+import org.antlr.v4.runtime.BaseErrorListener;
+import org.antlr.v4.runtime.CharStream;
+import org.antlr.v4.runtime.CharStreams;
+import org.antlr.v4.runtime.CommonTokenStream;
+import org.antlr.v4.runtime.RecognitionException;
+import org.antlr.v4.runtime.Recognizer;
+import org.antlr.v4.runtime.misc.ParseCancellationException;
+import org.antlr.v4.runtime.tree.ParseTree;
 
 public class Compiler {
 
+    private AdaToCVisitor visitor;
+
     private static final BaseErrorListener THROWING_ERROR_LISTENER = new BaseErrorListener() {
         @Override
-        public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol, int line, int charPositionInLine,
+        public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol,
+                                int line, int charPositionInLine,
                                 String msg, RecognitionException e) {
             throw new ParseCancellationException("line " + line + ":" + charPositionInLine + " " + msg);
         }
@@ -32,7 +42,16 @@ public class Compiler {
 
         ParseTree tree = parser.program();
 
-        AdaToCVisitor visitor = new AdaToCVisitor();
+        visitor = new AdaToCVisitor(); 
         return visitor.visit(tree);
+    }
+
+
+    public List<String> getSemanticErrors() {
+        return visitor == null ? List.of() : visitor.getSemanticErrors();
+    }
+
+    public boolean hasSemanticErrors() {
+        return visitor != null && visitor.hasSemanticErrors();
     }
 }
