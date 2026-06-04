@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ada to C Transpiler</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #1a1a1a; color: #e0e0e0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .header-title { color: #ffffff; font-weight: 700; letter-spacing: 1px; }
+        textarea { font-family: 'Fira Code', 'Courier New', Courier, monospace; background-color: #262626 !important; color: #a9dc76 !important; border: 1px solid #3a3a3a !important; font-size: 14px; }
+        textarea:focus { box-shadow: 0 0 0 0.25rem rgba(102, 217, 239, 0.25) !important; border-color: #66d9ef !important; }
+        .output-box { background-color: #262626; border: 1px solid #3a3a3a; min-height: 432px; font-family: 'Fira Code', 'Courier New', Courier, monospace; padding: 12px; color: #66d9ef; white-space: pre-wrap; border-radius: 6px; font-size: 14px; }
+        .error-box { background-color: rgba(255, 97, 136, 0.1); border: 1px solid #ff6188; color: #ff6188; padding: 15px; margin-top: 20px; border-radius: 6px; display: none; }
+        .btn-compile { background-color: #66d9ef; color: #1a1a1a; font-weight: bold; border: none; transition: 0.2s; }
+        .btn-compile:hover { background-color: #a9dc76; color: #1a1a1a; }
+    </style>
+</head>
+<body class="container py-5">
+
+    <h1 class="text-center mb-5 header-title">Ada -> C Transpiler</h1>
+
+    <div class="row g-4">
+        <div class="col-md-6">
+            <h5 class="mb-3 text-secondary">Kod źródłowy (Ada)</h5>
+            <textarea id="adaCode" class="form-control" rows="18" placeholder="-- Wpisz swój kod w języku Ada tutaj...&#10;procedure Main is&#10;begin&#10;    null;&#10;end Main;"></textarea>
+            <button onclick="compileCode()" class="btn btn-compile w-100 mt-3 py-2 shadow-sm">Konwertuj do C</button>
+        </div>
+
+        <div class="col-md-6">
+            <h5 class="mb-3 text-secondary">Wynik kompilacji (C)</h5>
+            <div id="cOutput" class="output-box text-muted">Oczekiwanie na kod...</div>
+        </div>
+    </div>
+
+    <div id="errorSection" class="error-box shadow">
+        <h5 class="fw-bold mb-2"> Wykryte błędy semantyczne:</h5>
+        <ul id="errorList" class="mb-0"></ul>
+    </div>
+
+    <script>
+        async function compileCode() {
+            const adaCode = document.getElementById('adaCode').value;
+            const cOutput = document.getElementById('cOutput');
+            const errorSection = document.getElementById('errorSection');
+            const errorList = document.getElementById('errorList');
+
+            errorSection.style.display = 'none';
+            errorList.innerHTML = '';
+            cOutput.innerText = "Przetwarzanie...";
+            cOutput.classList.remove("text-muted");
+
+            try {
+                const response = await fetch('/api/compile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: adaCode })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    cOutput.innerText = data.cCode;
+                    cOutput.style.color = "#66d9ef"; 
+                } else {
+                    cOutput.innerText = "/* Transpilacja przerwana z powodu błędów semantycznych */";
+                    cOutput.style.color = "#ff6188";
+                    
+                    errorSection.style.display = 'block';
+                    data.errors.forEach(err => {
+                        const li = document.createElement('li');
+                        li.className = "mt-1";
+                        li.innerText = err;
+                        errorList.appendChild(li);
+                    });
+                }
+            } catch (err) {
+                cOutput.innerText = "Błąd: Nie można połączyć się z backendem systemu. Sprawdź czy aplikacja w Javie działa.";
+                cOutput.style.color = "#ff6188";
+            }
+        }
+    </script>
+</body>
+</html>
