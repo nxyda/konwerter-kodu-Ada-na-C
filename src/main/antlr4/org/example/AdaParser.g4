@@ -59,6 +59,11 @@ proc_statement
     | if_statement_proc
     | while_statement_proc
     | for_statement_proc
+    | put_line_statement
+    ;
+
+put_line_statement
+    : PUT_LINE LPAREN expression RPAREN SEMICOLON
     ;
 
 func_statement_list

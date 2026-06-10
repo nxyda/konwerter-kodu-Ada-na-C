@@ -731,4 +731,18 @@ public class AdaToCVisitor extends AdaParserBaseVisitor<String> {
         }
         return false;
     }
+
+    @Override
+    public String visitPut_line_statement(AdaParser.Put_line_statementContext ctx) {
+        String expr = visit(ctx.expression());
+        CType type = inferType(ctx.expression());
+
+        String format = switch (type) {
+            case INT -> "%d";
+            case DOUBLE -> "%f";
+            case BOOL -> "%d";
+        };
+
+        return indent() + "printf(\"" + format + "\\n\", " + expr + ");\n";
+    }
 }

@@ -36,6 +36,7 @@ COMMA     : ',' ;
 LPAREN    : '(' ;
 RPAREN    : ')' ;
 
+PUT_LINE : 'Put_Line';
 
 FLOAT   : [0-9]+ '.' [0-9]+ ;
 INTEGER : [0-9]+ ;
