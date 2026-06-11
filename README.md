@@ -65,6 +65,7 @@ ANTLR4
 | COMMA        | `","`                    | separator                      |
 | LPAREN       | `"("`                    | nawias otwierający             |
 | RPAREN       | `")"`                    | nawias zamykający              |
+| PUT_LINE     | `"Put_Line"`             | wypisanie wartości na wyjście  |
 | IDENTIFIER   | `[a-zA-Z_][a-zA-Z0-9_]*` | nazwa zmiennej lub procedury   |
 | INTEGER      | `[0-9]+`                 | liczba całkowita               |
 | FLOAT        | `[0-9]+\.[0-9]+`         | liczba zmiennoprzecinkowa      |

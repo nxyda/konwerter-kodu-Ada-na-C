@@ -276,6 +276,7 @@ Mapowanie typów Ada $\rightarrow$ C:
 \texttt{Integer}, \texttt{Natural}, \texttt{Positive} & \texttt{int}    \\
 \texttt{Float}                    & \texttt{double} \\
 \texttt{Boolean}                  & \texttt{bool}   \\
+inny (nieznany)                   & błąd (\texttt{RuntimeException}) \\
 \bottomrule
 \end{tabular}
 \caption{Mapowanie typów}
@@ -337,6 +338,7 @@ Operacja arytmetyczna na \texttt{bool} & \texttt{True + 1} \\
 Dzielenie przez zero (statyczne) & \texttt{x := a / 0;} \\
 Nieprawidłowy typ indeksu tablicy & \texttt{A(1.5)} \\
 Indeks tablicy poza zakresem & \texttt{A(10)} przy rozmiarze 5 \\
+Nieznany typ Ada & \texttt{x : Integre := 1;} \\
 Pusta funkcja (brak \texttt{return}) & \texttt{function F return Integer is begin end F;} \\
 \bottomrule
 \end{tabular}

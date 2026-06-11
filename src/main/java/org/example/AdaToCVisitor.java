@@ -110,7 +110,7 @@ public class AdaToCVisitor extends AdaParserBaseVisitor<String> {
             case "integer", "natural", "positive" -> CType.INT.cName;
             case "float" -> CType.DOUBLE.cName;
             case "boolean" -> CType.BOOL.cName;
-            default -> CType.INT.cName;
+            default -> throw new RuntimeException("Unknown Ada type: '" + adaType + "'");
         };
     }
 
@@ -226,6 +226,10 @@ public class AdaToCVisitor extends AdaParserBaseVisitor<String> {
     @Override
     public String visitProcedure_decl(AdaParser.Procedure_declContext ctx) {
         String procedureName = ctx.IDENTIFIER(0).getText();
+        String endName = ctx.IDENTIFIER(1).getText();
+        if (!procedureName.equalsIgnoreCase(endName)) {
+            semanticError("Nazwa procedury '" + procedureName + "' nie zgadza się z nazwą po 'end': '" + endName + "'", ctx);
+        }
 
         if (firstProcedureName == null) {
             firstProcedureName = procedureName;
@@ -257,8 +261,12 @@ public class AdaToCVisitor extends AdaParserBaseVisitor<String> {
 
     @Override
     public String visitFunction_decl(AdaParser.Function_declContext ctx) {
-        String returnType = mapAdaTypeToC(ctx.IDENTIFIER(1).getText());
         String functionName = ctx.IDENTIFIER(0).getText();
+        String returnType = mapAdaTypeToC(ctx.IDENTIFIER(1).getText());
+        String endName = ctx.IDENTIFIER(2).getText();
+        if (!functionName.equalsIgnoreCase(endName)) {
+            semanticError("Nazwa funkcji '" + functionName + "' nie zgadza się z nazwą po 'end': '" + endName + "'", ctx);
+        }
         StringBuilder sb = new StringBuilder();
 
         sb.append(returnType).append(" ").append(functionName).append("() {\n");
@@ -332,7 +340,7 @@ public class AdaToCVisitor extends AdaParserBaseVisitor<String> {
             case "float" -> CType.DOUBLE;
             case "boolean" -> CType.BOOL;
             case "integer", "natural", "positive" -> CType.INT;
-            default -> CType.INT;
+            default -> throw new RuntimeException("Unknown Ada type: '" + adaType + "'");
         };
     }
 
@@ -624,6 +632,9 @@ public class AdaToCVisitor extends AdaParserBaseVisitor<String> {
         String text = ctx.getText();
         if (text.equalsIgnoreCase("true")) return "true";
         if (text.equalsIgnoreCase("false")) return "false";
+        if (ctx.IDENTIFIER() != null && !isDeclared(text)) {
+            semanticError("Undeclared variable used: " + text, ctx);
+        }
         return text;
     }
 
