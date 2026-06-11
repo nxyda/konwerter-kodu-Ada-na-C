@@ -33,6 +33,7 @@ public class AdaToCVisitor extends AdaParserBaseVisitor<String> {
     private final List<String> semanticErrors = new ArrayList<>();
 
     private String firstProcedureName = null;
+    private CType currentFunctionReturnType = null;
 
     private final Deque<Map<String, CType>> scopeTypes = new ArrayDeque<>();
     private final Deque<Set<String>> declaredVars = new ArrayDeque<>();
@@ -271,23 +272,26 @@ public class AdaToCVisitor extends AdaParserBaseVisitor<String> {
 
         sb.append(returnType).append(" ").append(functionName).append("() {\n");
 
+        currentFunctionReturnType = mapAdaTypeToCType(ctx.IDENTIFIER(1).getText());
         pushScope();
         indentLevel++;
         sb.append(visit(ctx.var_decl_section()));
 
-        if (ctx.func_statement_list() == null || 
-            ctx.func_statement_list().func_statement() == null || 
-            ctx.func_statement_list().func_statement().isEmpty()) {
-            
+        boolean hasReturn = ctx.func_statement_list() != null &&
+            ctx.func_statement_list().func_statement() != null &&
+            ctx.func_statement_list().func_statement().stream()
+                .anyMatch(s -> s.return_statement() != null);
+        if (!hasReturn) {
             semanticError("Błąd semantyczny: Funkcja '" + functionName + "' nie może być pusta. Wymagany jest 'return'.", ctx);
         }
 
         if (ctx.func_statement_list() != null) {
             sb.append(visit(ctx.func_statement_list()));
         }
-        
+
         indentLevel--;
         popScope();
+        currentFunctionReturnType = null;
         sb.append("}\n");
 
         return sb.toString();
@@ -303,6 +307,10 @@ public class AdaToCVisitor extends AdaParserBaseVisitor<String> {
     @Override
     public String visitVar_decl(AdaParser.Var_declContext ctx) {
         String varName = ctx.IDENTIFIER(0).getText();
+
+        if (isDeclared(varName)) {
+            semanticError("Zmienna '" + varName + "' jest już zadeklarowana w tym zakresie", ctx);
+        }
 
         // array declaration: X : array (1..N) of Integer;
         if (ctx.ARRAY() != null) {
@@ -384,10 +392,8 @@ public class AdaToCVisitor extends AdaParserBaseVisitor<String> {
             }
 
             if (!isDeclared(name)) {
-                CType inferred = inferType(ctx.expression());
-                setType(name, inferred);
-                markDeclared(name);
-                return indent() + inferred.cName + " " + name + " = " + expression + ";\n";
+                semanticError("Przypisanie do niezadeklarowanej zmiennej: '" + name + "'", ctx);
+                return indent() + "/* undeclared: " + name + " */;\n";
             }
             return indent() + name + " = " + expression + ";\n";
         }
@@ -574,6 +580,10 @@ public class AdaToCVisitor extends AdaParserBaseVisitor<String> {
 
     @Override
     public String visitReturn_statement(AdaParser.Return_statementContext ctx) {
+        CType returnedType = inferType(ctx.expression());
+        if (currentFunctionReturnType != null && returnedType != null && returnedType != currentFunctionReturnType) {
+            semanticError("Niezgodność typu return: oczekiwano " + currentFunctionReturnType + ", zwrócono " + returnedType, ctx);
+        }
         return indent() + "return " + visit(ctx.expression()) + ";\n";
     }
 

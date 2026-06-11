@@ -14,7 +14,7 @@ Zgodnie z zasadami języka Ada każdy plik `.adb` zawiera dokładnie jedną jedn
 
 ### Rodzaj translatora
 
-Transpiler
+Konwerter
 
 ### Planowany wynik działania programu
 
@@ -270,7 +270,7 @@ Pipeline przetwarzania kodu przebiega przez cztery etapy:
 
 ---
 
-# Ada → C Transpiler
+# Ada → C Konwerter
 
 Projekt to transpiler języka **Ada do C** z dwoma trybami działania:
 
@@ -280,6 +280,8 @@ Projekt to transpiler języka **Ada do C** z dwoma trybami działania:
 ---
 
 ## Struktura projektu
+
+### Application
 
 Punkt startowy aplikacji webowej opartej na Spring Boot. Uruchamia serwer na porcie `8080`.
 
@@ -292,7 +294,8 @@ public class Application {
 }
 ```
 
-Main
+### Main
+
 Punkt wejściowy trybu CLI.
 Odpowiada za:
 
@@ -302,9 +305,9 @@ Odpowiada za:
 - wypisanie błędów na stderr
 - zakończenie programu kodem 2 w przypadku błędów
 
-Compiler
+### Compiler
 
-Fasada pipeline’u opartego o ANTLR4 odpowiedzialna za kompilację plików.
+Klasa odpowiedzialna za przeprowadzenie procesu konwersji kodu Ada na C z użyciem ANTLR4.
 Zakres odpowiedzialności:
 
 - wczytywanie plików (CharStreams.fromFileName)
@@ -314,53 +317,57 @@ Zakres odpowiedzialności:
 - uruchomienie AdaToCVisitor
 - udostępnienie błędów semantycznych
 
-CompilerController
+### CompilerController
 
-REST API w Spring Boot (@RestController)
+REST API w Spring Boot (`@RestController`)
 
-Endpoint:
-POST /api/compile
+Endpoint: `POST /api/compile`
 
 Wejście:
+```json
 {
-"code": "..."
+  "code": "..."
 }
+```
 
-Wyjście:
-Sukces:
+Wyjście — sukces:
+```json
 {
-"success": true,
-"cCode": "..."
+  "success": true,
+  "cCode": "..."
 }
+```
 
-Błąd:
+Wyjście — błąd:
+```json
 {
-"success": false,
-"errors": []
+  "success": false,
+  "errors": []
 }
+```
 
-AdaToCVisitor
-Główna klasa transpiler’a.
-Dziedziczy po:
-AdaParserBaseVisitor<String>
-Każda metoda visitXxx():
+### AdaToCVisitor
+
+Główna klasa konwertera. Dziedziczy po `AdaParserBaseVisitor<String>`.
+Każda metoda `visitXxx()`:
 
 - odpowiada regule gramatycznej
 - zwraca fragment kodu C jako String
 
-Zarządzanie zakresami
+#### Zarządzanie zakresami
 
 Struktury:
 
-- scopeTypes: Map<String, CType> – mapowanie zmiennych na typy
-- declaredVars: Set<String> – zmienne w bieżącym scope
+- `scopeTypes`: `Map<String, CType>` – mapowanie zmiennych na typy
+- `declaredVars`: `Set<String>` – zmienne w bieżącym scope
 
 Operacje:
 
-- pushScope() – wejście do bloku
-- popScope() – wyjście z bloku
+- `pushScope()` – wejście do bloku
+- `popScope()` – wyjście z bloku
 
-System typów
+#### System typów
+
 Wewnętrzny enum `CType` definiuje podstawowe typy używane w systemie:
 
 ```java
@@ -371,7 +378,7 @@ private enum CType {
 }
 ```
 
-Mapowanie typów Ada → C
+#### Mapowanie typów Ada → C
 
 | Typ Ada  | Typ C  |
 | -------- | ------ |
@@ -381,7 +388,7 @@ Mapowanie typów Ada → C
 | Float    | double |
 | Boolean  | bool   |
 
-Generowanie kodu
+#### Generowanie kodu
 
 Wcięcia zarządzane są zmienną indentLevel.
 Metoda indent() generuje odpowiedni łańcuch białych znaków.
@@ -413,13 +420,18 @@ Klasa `AdaToCVisitor` przeprowadza analizę semantyczną podczas przechodzenia d
 
 | Rodzaj błędu                      | Przykład wyzwalający                        |
 | --------------------------------- | ------------------------------------------- |
-| Użycie niezadeklarowanej zmiennej | `x := y + 1` (y nieznane)                   |
-| Niezgodność typów w przypisaniu   | przypisanie `double` do `int`               |
-| Operacja arytmetyczna na `bool`   | `True + 1`                                  |
-| Dzielenie przez zero (statyczne)  | `x := a / 0;`                               |
-| Nieprawidłowy typ indeksu tablicy | `A(1.5)`                                    |
-| Indeks tablicy poza zakresem      | `A(10)` przy rozmiarze 5                    |
-| Pusta funkcja (brak `return`)     | `function F return Integer is begin end F;` |
+| Użycie niezadeklarowanej zmiennej         | `x := y + 1` (y nieznane)                              |
+| Przypisanie do niezadeklarowanej zmiennej | `z := 5;` (z nie zadeklarowane w sekcji deklaracji)    |
+| Duplikat deklaracji zmiennej              | `x : Integer; x : Float;` w tym samym zakresie         |
+| Niezgodność typów w przypisaniu           | przypisanie `double` do `int`                           |
+| Niezgodność typu return                   | funkcja `return Integer` zwraca `Float`                 |
+| Operacja arytmetyczna na `bool`           | `True + 1`                                              |
+| Dzielenie przez zero (statyczne)          | `x := a / 0;`                                          |
+| Nieprawidłowy typ indeksu tablicy         | `A(1.5)`                                               |
+| Indeks tablicy poza zakresem              | `A(10)` przy rozmiarze 5                               |
+| Pusta funkcja (brak `return`)             | `function F return Integer is begin end F;`            |
+| Nieznany typ Ada                          | `x : Integre := 1;`                                    |
+| Niezgodna nazwa po `end`                  | `procedure Foo is ... end Bar;`                        |
 
 ## Interfejs webowy
 
@@ -512,7 +524,7 @@ begin
 end DivByZero;
 ```
 
-Transpiler wykrywa dzielenie przez zero statycznie i zwraca błąd zamiast generować kod C:
+Konwerter wykrywa dzielenie przez zero statycznie i zwraca błąd zamiast generować kod C:
 
 ```json
 {
