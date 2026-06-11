@@ -8,9 +8,14 @@
     <style>
         body { background-color: #1a1a1a; color: #e0e0e0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .header-title { color: #ffffff; font-weight: 700; letter-spacing: 1px; }
-        textarea { font-family: 'Fira Code', 'Courier New', Courier, monospace; background-color: #262626 !important; color: #a9dc76 !important; border: 1px solid #3a3a3a !important; font-size: 14px; }
-        textarea:focus { box-shadow: 0 0 0 0.25rem rgba(102, 217, 239, 0.25) !important; border-color: #66d9ef !important; }
-        .output-box { background-color: #262626; border: 1px solid #3a3a3a; min-height: 432px; font-family: 'Fira Code', 'Courier New', Courier, monospace; padding: 12px; color: #66d9ef; white-space: pre-wrap; border-radius: 6px; font-size: 14px; }
+        .editor-wrap { display: flex; background-color: #262626; border: 1px solid #3a3a3a; border-radius: 6px; overflow: hidden; }
+        .editor-wrap:focus-within { box-shadow: 0 0 0 0.25rem rgba(102, 217, 239, 0.25); border-color: #66d9ef; }
+        .line-numbers { padding: 12px 8px 12px 10px; background-color: #1e1e1e; color: #555; font-family: 'Fira Code', 'Courier New', Courier, monospace; font-size: 14px; line-height: 1.5; text-align: right; user-select: none; min-width: 40px; border-right: 1px solid #3a3a3a; overflow: hidden; white-space: pre; }
+        textarea { font-family: 'Fira Code', 'Courier New', Courier, monospace; background-color: #262626 !important; color: #a9dc76 !important; border: none !important; font-size: 14px; line-height: 1.5; resize: none; flex: 1; border-radius: 0 !important; padding: 12px !important; }
+        textarea:focus { box-shadow: none !important; outline: none !important; }
+        .output-box { background-color: #262626; border: 1px solid #3a3a3a; min-height: 432px; font-family: 'Fira Code', 'Courier New', Courier, monospace; color: #66d9ef; white-space: pre; border-radius: 6px; font-size: 14px; display: flex; overflow: auto; }
+        .output-line-numbers { padding: 12px 8px 12px 10px; background-color: #1e1e1e; color: #555; font-size: 14px; line-height: 1.5; text-align: right; user-select: none; min-width: 40px; border-right: 1px solid #3a3a3a; white-space: pre; flex-shrink: 0; }
+        .output-content { padding: 12px; flex: 1; white-space: pre-wrap; }
         .error-box { background-color: rgba(255, 97, 136, 0.1); border: 1px solid #ff6188; color: #ff6188; padding: 15px; margin-top: 20px; border-radius: 6px; display: none; }
         .btn-compile { background-color: #66d9ef; color: #1a1a1a; font-weight: bold; border: none; transition: 0.2s; }
         .btn-compile:hover { background-color: #a9dc76; color: #1a1a1a; }
@@ -23,13 +28,19 @@
     <div class="row g-4">
         <div class="col-md-6">
             <h5 class="mb-3 text-secondary">Kod źródłowy (Ada)</h5>
-            <textarea id="adaCode" class="form-control" rows="18" placeholder="-- Wpisz swój kod w języku Ada tutaj...&#10;procedure Main is&#10;begin&#10;    null;&#10;end Main;"></textarea>
+            <div class="editor-wrap">
+                <div id="adaLineNumbers" class="line-numbers">1</div>
+                <textarea id="adaCode" rows="18" placeholder="-- Wpisz swój kod w języku Ada tutaj...&#10;procedure Main is&#10;begin&#10;    null;&#10;end Main;" oninput="updateLineNumbers()" onscroll="syncScroll()" onkeydown="updateLineNumbers()"></textarea>
+            </div>
             <button onclick="compileCode()" class="btn btn-compile w-100 mt-3 py-2 shadow-sm">Konwertuj do C</button>
         </div>
 
         <div class="col-md-6">
             <h5 class="mb-3 text-secondary">Wynik kompilacji (C)</h5>
-            <div id="cOutput" class="output-box text-muted">Oczekiwanie na kod...</div>
+            <div id="cOutput" class="output-box">
+                <div id="cLineNumbers" class="output-line-numbers" style="color:#555"></div>
+                <div id="cContent" class="output-content" style="color:#555">Oczekiwanie na kod...</div>
+            </div>
         </div>
     </div>
 
@@ -39,16 +50,37 @@
     </div>
 
     <script>
+        function updateLineNumbers() {
+            const textarea = document.getElementById('adaCode');
+            const lineNumbers = document.getElementById('adaLineNumbers');
+            const lineCount = textarea.value.split('\n').length;
+            lineNumbers.textContent = Array.from({length: lineCount}, (_, i) => i + 1).join('\n');
+        }
+
+        function syncScroll() {
+            const textarea = document.getElementById('adaCode');
+            const lineNumbers = document.getElementById('adaLineNumbers');
+            lineNumbers.scrollTop = textarea.scrollTop;
+        }
+
+        function setOutput(text, color) {
+            const content = document.getElementById('cContent');
+            const lineNumbers = document.getElementById('cLineNumbers');
+            content.textContent = text;
+            content.style.color = color;
+            const lines = text.split('\n').length;
+            lineNumbers.textContent = Array.from({length: lines}, (_, i) => i + 1).join('\n');
+            lineNumbers.style.color = '#555';
+        }
+
         async function compileCode() {
             const adaCode = document.getElementById('adaCode').value;
-            const cOutput = document.getElementById('cOutput');
             const errorSection = document.getElementById('errorSection');
             const errorList = document.getElementById('errorList');
 
             errorSection.style.display = 'none';
             errorList.innerHTML = '';
-            cOutput.innerText = "Przetwarzanie...";
-            cOutput.classList.remove("text-muted");
+            setOutput("Przetwarzanie...", "#888");
 
             try {
                 const response = await fetch('/api/compile', {
@@ -60,12 +92,9 @@
                 const data = await response.json();
 
                 if (data.success) {
-                    cOutput.innerText = data.cCode;
-                    cOutput.style.color = "#66d9ef"; 
+                    setOutput(data.cCode, "#66d9ef");
                 } else {
-                    cOutput.innerText = "/* Transpilacja przerwana z powodu błędów semantycznych */";
-                    cOutput.style.color = "#ff6188";
-                    
+                    setOutput("/* Transpilacja przerwana z powodu błędów semantycznych */", "#ff6188");
                     errorSection.style.display = 'block';
                     data.errors.forEach(err => {
                         const li = document.createElement('li');
@@ -75,10 +104,11 @@
                     });
                 }
             } catch (err) {
-                cOutput.innerText = "Błąd: Nie można połączyć się z backendem systemu. Sprawdź czy aplikacja w Javie działa.";
-                cOutput.style.color = "#ff6188";
+                setOutput("Błąd: Nie można połączyć się z backendem systemu. Sprawdź czy aplikacja w Javie działa.", "#ff6188");
             }
         }
+
+        updateLineNumbers();
     </script>
 </body>
 </html>

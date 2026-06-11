@@ -1,0 +1,551 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[polish]{babel}
+\usepackage{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{titlesec}
+\usepackage{parskip}
+\usepackage{graphicx}
+\usepackage{microtype}
+\usepackage{fancyhdr}
+\usepackage{enumitem}
+
+\geometry{margin=2.5cm}
+
+% --- kolory do listingów ---
+\definecolor{codebg}{HTML}{1E1E1E}
+\definecolor{codegreen}{HTML}{6A9955}
+\definecolor{codekw}{HTML}{569CD6}
+\definecolor{codestr}{HTML}{CE9178}
+\definecolor{codefg}{HTML}{D4D4D4}
+\definecolor{accentblue}{HTML}{2E6DA4}
+
+% --- styl listingów ---
+\lstdefinestyle{ada}{
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\footnotesize\color{codefg},
+  keywordstyle=\color{codekw}\bfseries,
+  commentstyle=\color{codegreen},
+  stringstyle=\color{codestr},
+  breaklines=true,
+  frame=single,
+  rulecolor=\color{gray!40},
+  framesep=4pt,
+  xleftmargin=8pt,
+  xrightmargin=4pt,
+  tabsize=4,
+  showstringspaces=false,
+  morekeywords={procedure,function,is,begin,end,if,then,else,elsif,while,loop,
+                for,in,return,array,of,Put_Line},
+}
+
+\lstdefinestyle{c}{
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\footnotesize\color{codefg},
+  keywordstyle=\color{codekw}\bfseries,
+  commentstyle=\color{codegreen},
+  stringstyle=\color{codestr},
+  breaklines=true,
+  frame=single,
+  rulecolor=\color{gray!40},
+  framesep=4pt,
+  xleftmargin=8pt,
+  xrightmargin=4pt,
+  tabsize=4,
+  showstringspaces=false,
+  language=C,
+}
+
+\lstdefinestyle{bnf}{
+  backgroundcolor=\color{gray!8},
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  frame=single,
+  rulecolor=\color{gray!40},
+  framesep=4pt,
+  xleftmargin=8pt,
+  tabsize=4,
+}
+
+% --- nagłówek/stopka ---
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\textcolor{gray}{\small Konwerter Ada $\rightarrow$ C}}
+\lhead{\textcolor{gray}{\small Dokumentacja techniczna}}
+\cfoot{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% --- kolory linków ---
+\hypersetup{
+  colorlinks=true,
+  linkcolor=accentblue,
+  urlcolor=accentblue,
+}
+
+% ===================================================================
+\begin{document}
+
+\begin{titlepage}
+  \centering
+  \vspace*{2cm}
+  {\Huge\bfseries Konwerter kodu Ada~$\rightarrow$~C\par}
+  \vspace{0.5cm}
+  {\Large Dokumentacja techniczna\par}
+  \vspace{1.5cm}
+  \rule{\linewidth}{0.4pt}
+  \vspace{1cm}
+
+  \begin{tabular}{ll}
+    \textbf{Autorzy:}   & Natalia Poźniak \\
+                        & Małgorzata Poskróbek \\[6pt]
+    \textbf{Język impl.:} & Java 17 \\
+    \textbf{Generator parsera:} & ANTLR4 4.13.1 \\
+    \textbf{Framework web:} & Spring Boot 3.2.3 \\
+    \textbf{System budowania:} & Maven \\
+  \end{tabular}
+
+  \vspace{1cm}
+  \rule{\linewidth}{0.4pt}
+  \vfill
+  {\large AGH Akademia Górniczo-Hutnicza\par}
+  {\large \the\year\par}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ===================================================================
+\section{Opis projektu}
+
+Projekt stanowi \textbf{transpiler} (source-to-source compiler) tłumaczący kod źródłowy
+napisany w języku \textbf{Ada} na ekwiwalentny kod w języku~\textbf{C}.
+Udostępnia dwa tryby działania:
+
+\begin{itemize}
+  \item \textbf{Aplikacja webowa} -- interfejs przeglądarkowy oparty na Spring Boot,
+        pozwalający wpisać kod Ady i natychmiast uzyskać wynik konwersji,
+  \item \textbf{Tryb CLI} -- uruchamiany bezpośrednio z wiersza poleceń;
+        przetwarza wskazane pliki \texttt{.adb} i zapisuje wyniki do katalogu \texttt{out/}.
+\end{itemize}
+
+% ===================================================================
+\section{Technologie}
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{lll}
+\toprule
+\textbf{Warstwa}       & \textbf{Technologia}                   & \textbf{Wersja} \\
+\midrule
+Język implementacji    & Java                                   & 17              \\
+Framework webowy       & Spring Boot (spring-boot-starter-web)  & 3.2.3           \\
+Generator parsera      & ANTLR4                                 & 4.13.1          \\
+System budowania       & Apache Maven                           & ---             \\
+Frontend               & HTML + Bootstrap 5.3 + vanilla JS      & ---             \\
+\bottomrule
+\end{tabular}
+\caption{Stos technologiczny projektu}
+\end{table}
+
+% ===================================================================
+\section{Architektura systemu}
+
+Pipeline przetwarzania kodu przebiega przez cztery etapy:
+
+\begin{enumerate}
+  \item \textbf{Leksykalna analiza} -- \texttt{AdaLexer} (generowany z \texttt{AdaLexer.g4})
+        zamienia strumień znaków na sekwencję tokenów.
+  \item \textbf{Analiza składniowa} -- \texttt{AdaParser} (generowany z \texttt{AdaParser.g4})
+        buduje drzewo rozbioru (\emph{ParseTree}).
+  \item \textbf{Analiza semantyczna i generowanie kodu} -- \texttt{AdaToCVisitor}
+        przechodzi drzewo metodą \emph{Visitor} i produkuje kod C.
+  \item \textbf{Wyjście} -- tekst kodu C zwracany do wywołującego
+        (plik \texttt{.c} w trybie CLI, odpowiedź JSON w trybie web).
+\end{enumerate}
+
+\begin{lstlisting}[style=bnf, caption={Schemat pipeline'u}]
+Kod Ada (tekst)
+      |
+      v
+  AdaLexer          <- tokenizacja (AdaLexer.g4)
+      |
+      v
+  AdaParser         <- analiza skladniowa (AdaParser.g4)
+      |  ParseTree
+      v
+  AdaToCVisitor     <- semantyka + generowanie kodu C
+      |
+      v
+  Kod C (tekst)
+\end{lstlisting}
+
+% ===================================================================
+\section{Opis klas}
+
+\subsection{\texttt{Application}}
+
+Punkt startowy aplikacji webowej. Uruchamia kontener Spring Boot na porcie 8080.
+
+\begin{lstlisting}[style=c, caption={Klasa Application}]
+@SpringBootApplication
+public class Application {
+    public static void main(String[] args) {
+        SpringApplication.run(Application.class, args);
+    }
+}
+\end{lstlisting}
+
+\subsection{\texttt{Main}}
+
+Punkt startowy trybu CLI. Przyjmuje listę plików \texttt{.adb} jako argumenty,
+dla każdego wywołuje \texttt{Compiler.compileFile()} i zapisuje wynik do
+katalogu \texttt{out/}. Błędy syntaktyczne i semantyczne trafiają na
+\texttt{stderr}; program kończy się kodem~\texttt{2} w~przypadku niepowodzenia.
+
+\subsection{\texttt{Compiler}}
+
+Fasada enkapsulująca pipeline ANTLR4 dla trybu plikowego.
+Odpowiada za:
+\begin{itemize}
+  \item wczytanie pliku (\texttt{CharStreams.fromFileName}),
+  \item konfigurację leksera i parsera z własnym \texttt{ErrorListener}
+        rzucającym \texttt{ParseCancellationException} przy błędzie składni,
+  \item uruchomienie \texttt{AdaToCVisitor},
+  \item udostępnienie listy błędów semantycznych przez
+        \texttt{getSemanticErrors()} i \texttt{hasSemanticErrors()}.
+\end{itemize}
+
+\subsection{\texttt{CompilerController}}
+
+Kontroler REST Spring Boot (\texttt{@RestController}).
+
+\begin{itemize}
+  \item \textbf{Endpoint:} \texttt{POST /api/compile}
+  \item \textbf{Wejście:} JSON \texttt{\{"code": "..."\}}
+  \item \textbf{Wyjście (sukces):} \texttt{\{"success": true, "cCode": "..."\}}
+  \item \textbf{Wyjście (błąd):} \texttt{\{"success": false, "errors": [...]\}}
+\end{itemize}
+
+Pipeline działa na łańcuchu znaków (\texttt{CharStreams.fromString}),
+bez operacji wejścia/wyjścia na dysku.
+
+\subsection{\texttt{AdaToCVisitor}}
+
+Główna klasa logiki transpilatora -- rozszerza wygenerowaną klasę
+\texttt{AdaParserBaseVisitor<String>}. Każda metoda \texttt{visitXxx()}
+odpowiada regule gramatycznej i zwraca fragment kodu C jako \texttt{String}.
+
+\subsubsection{Zarządzanie zakresami}
+
+Klasa utrzymuje stos (\texttt{Deque}) dwóch równoległych struktur:
+\begin{itemize}
+  \item \texttt{scopeTypes} -- \texttt{Map<String, CType>} mapująca
+        nazwę zmiennej na jej typ,
+  \item \texttt{declaredVars} -- \texttt{Set<String>} zmiennych
+        zadeklarowanych w bieżącym zakresie.
+\end{itemize}
+Metody \texttt{pushScope()} / \texttt{popScope()} są wywoływane na wejściu
+i wyjściu z każdej procedury i funkcji.
+
+\subsubsection{System typów}
+
+Wewnętrzny enum \texttt{CType}:
+
+\begin{lstlisting}[style=c, caption={Enum CType}]
+private enum CType {
+    INT("int"),
+    DOUBLE("double"),
+    BOOL("bool");
+}
+\end{lstlisting}
+
+Mapowanie typów Ada $\rightarrow$ C:
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Typ Ada}                  & \textbf{Typ C} \\
+\midrule
+\texttt{Integer}, \texttt{Natural}, \texttt{Positive} & \texttt{int}    \\
+\texttt{Float}                    & \texttt{double} \\
+\texttt{Boolean}                  & \texttt{bool}   \\
+\bottomrule
+\end{tabular}
+\caption{Mapowanie typów}
+\end{table}
+
+Metoda \texttt{inferType()} przechodzi rekurencyjnie przez węzły
+\texttt{expression $\rightarrow$ term $\rightarrow$ factor} i wyznacza typ
+wynikowy wyrażenia.
+
+\subsubsection{Generowanie kodu}
+
+Wcięcia zarządzane są zmienną \texttt{indentLevel} (4 spacje na poziom).
+Metoda \texttt{indent()} generuje odpowiedni łańcuch białych znaków.
+
+% ===================================================================
+\section{Obsługiwane konstrukcje języka Ada}
+
+\begin{longtable}{ll}
+\toprule
+\textbf{Konstrukcja Ada} & \textbf{Odpowiednik C} \\
+\midrule
+\endhead
+\texttt{procedure P is \ldots\ end P;} & \texttt{void P() \{ \ldots\ \}} \\
+\texttt{procedure Main is \ldots} & \texttt{int main() \{ \ldots\ return 0; \}} \\
+\texttt{function F return T is \ldots} & \texttt{T F() \{ \ldots\ \}} \\
+\texttt{X : Integer := E;} & \texttt{int X = E;} (deklaracja ze typem) \\
+\texttt{X : Float;} & \texttt{double X;} (deklaracja bez wartości) \\
+\texttt{X : array (A..B) of Integer;} & \texttt{int X[B+1];} (tablica 1-indeksowana) \\
+\texttt{X := E;} & \texttt{X = E;} \\
+\texttt{if \ldots\ then \ldots\ elsif \ldots\ else \ldots\ end if;} & \texttt{if (\ldots) \{ \ldots\ \} else if \{ \ldots\ \} else \{ \ldots\ \}} \\
+\texttt{while \ldots\ loop \ldots\ end loop;} & \texttt{while (\ldots) \{ \ldots\ \}} \\
+\texttt{for I in A .. B loop \ldots} & \texttt{for (int I = A; I <= B; I++) \{ \}} \\
+\texttt{return E;} & \texttt{return E;} \\
+\texttt{Put\_Line(E);} & \texttt{printf("\%d$\backslash$n", E)} / \texttt{\%f} \\
+\texttt{A(I)}, \texttt{A(I,J)} & \texttt{A[I]}, \texttt{A[I][J]} \\
+\texttt{=}, \texttt{/=} & \texttt{==}, \texttt{!=} \\
+\bottomrule
+\caption{Obsługiwane konstrukcje}
+\end{longtable}
+
+% ===================================================================
+\section{Analiza semantyczna}
+
+Klasa \texttt{AdaToCVisitor} przeprowadza analizę semantyczną
+w~trakcie przechodzenia drzewa. Wykryte błędy są zbierane na liście
+\texttt{semanticErrors} i~zwracane po zakończeniu kompilacji.
+Każdy komunikat zawiera numer linii w~oryginalnym kodzie Ada
+(np.\ \texttt{Linia 5: Undeclared variable used: x}).
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Rodzaj błędu} & \textbf{Przykład wyzwalający} \\
+\midrule
+Użycie niezadeklarowanej zmiennej & \texttt{x := y + 1} (y nieznane) \\
+Niezgodność typów w przypisaniu & przypisanie \texttt{double} do \texttt{int} \\
+Operacja arytmetyczna na \texttt{bool} & \texttt{True + 1} \\
+Dzielenie przez zero (statyczne) & \texttt{x := a / 0;} \\
+Nieprawidłowy typ indeksu tablicy & \texttt{A(1.5)} \\
+Indeks tablicy poza zakresem & \texttt{A(10)} przy rozmiarze 5 \\
+Pusta funkcja (brak \texttt{return}) & \texttt{function F return Integer is begin end F;} \\
+\bottomrule
+\end{tabular}
+\caption{Wykrywane błędy semantyczne}
+\end{table}
+
+% ===================================================================
+\section{Gramatyka}
+
+Gramatyka jest podzielona na dwa pliki ANTLR4.
+
+\subsection{Lekser -- \texttt{AdaLexer.g4}}
+
+Lekser obsługuje słowa kluczowe \emph{case-insensitive} (Ada jest językiem
+nierozróżniającym wielkości liter) za pomocą fragmentów literowych:
+
+\begin{lstlisting}[style=bnf, caption={Fragment AdaLexer.g4}]
+PROCEDURE : P R O C E D U R E ;
+FUNCTION  : F U N C T I O N ;
+...
+FLOAT      : [0-9]+ '.' [0-9]+ ;
+INTEGER    : [0-9]+ ;
+IDENTIFIER : [a-zA-Z_] [a-zA-Z0-9_]* ;
+COMMENT    : '--' ~[\r\n]* -> skip ;
+WS         : [ \t\r\n]+ -> skip ;
+fragment A:[aA]; fragment B:[bB]; ...
+\end{lstlisting}
+
+\subsection{Parser -- \texttt{AdaParser.g4}}
+
+\begin{lstlisting}[style=bnf, caption={Gramatyka (BNF -- skrót)}]
+program          ::= subprogram_decl
+subprogram_decl  ::= procedure_decl | function_decl
+
+procedure_decl   ::= "procedure" IDENTIFIER "is"
+                       var_decl_section
+                     "begin"
+                       proc_statement_list?
+                     "end" IDENTIFIER ";"
+
+function_decl    ::= "function" IDENTIFIER "return" IDENTIFIER "is"
+                       var_decl_section
+                     "begin"
+                       func_statement_list?
+                     "end" IDENTIFIER ";"
+
+var_decl_section ::= var_decl*
+var_decl         ::= IDENTIFIER ":" IDENTIFIER [ ":=" expression ] ";"
+                   | IDENTIFIER ":" "array" "(" expression ".." expression ")" "of" IDENTIFIER ";"
+
+proc_statement   ::= assignment | if_statement | while_statement
+                   | for_statement | put_line_statement
+func_statement   ::= assignment | if_statement | while_statement
+                   | for_statement | return_statement
+
+put_line_statement ::= "Put_Line" "(" expression ")" ";"
+
+condition        ::= expression relational_op expression
+relational_op    ::= "=" | "/=" | "<" | ">" | "<=" | ">="
+expression       ::= term | expression ("+" | "-") term
+term             ::= factor | term ("*" | "/") factor
+factor           ::= "-" factor | IDENTIFIER | array_access
+                   | INTEGER | FLOAT | "(" expression ")"
+\end{lstlisting}
+
+% ===================================================================
+\section{Interfejs webowy}
+
+Frontend serwowany jest jako plik statyczny z~\texttt{src/main/resources/static/index.html}.
+
+\begin{itemize}
+  \item \textbf{Lewy panel:} pole tekstowe z kodem Ada (monospacefont, ciemne tło).
+  \item \textbf{Przycisk} \emph{Konwertuj do C}: wywołuje \texttt{POST /api/compile}
+        przez Fetch API.
+  \item \textbf{Prawy panel:} wygenerowany kod C (kolor niebieski) lub komunikat
+        o~błędzie.
+  \item \textbf{Sekcja błędów semantycznych:} lista błędów wyświetlana na czerwono
+        poniżej paneli.
+\end{itemize}
+
+% ===================================================================
+\section{Uruchomienie}
+
+\subsection{Aplikacja webowa}
+
+\begin{lstlisting}[style=bnf]
+mvn spring-boot:run
+\end{lstlisting}
+
+Aplikacja dostępna pod adresem \texttt{http://localhost:8080}.
+
+\subsection{Tryb CLI}
+
+\begin{lstlisting}[style=bnf]
+mvn package -DskipTests
+java -jar target/ada-to-c-1.0.jar examples/factorial.adb
+\end{lstlisting}
+
+Wynik zapisywany jest w katalogu \texttt{out/factorial.c}.
+W przypadku błędów program wypisuje komunikaty na \texttt{stderr}
+i kończy działanie z kodem~\texttt{2}.
+
+% ===================================================================
+\section{Przykłady}
+
+\subsection{Silnia (Ada)}
+
+\begin{lstlisting}[style=ada, caption={examples/factorial.adb}]
+procedure Factorial is
+    n    : Integer := 5;
+    fact : Integer := 1;
+begin
+    for i in 1 .. n loop
+        fact := fact * i;
+    end loop;
+end Factorial;
+\end{lstlisting}
+
+\subsection{Wygenerowany kod C}
+
+\begin{lstlisting}[style=c, caption={out/factorial.c}]
+#include <stdio.h>
+#include <stdbool.h>
+#include <stdlib.h>
+
+void Factorial() {
+    int n = 5;
+    int fact = 1;
+    for (int i = 1; i <= n; i++) {
+        fact = fact * i;
+    }
+}
+
+int main() {
+    Factorial();
+    return 0;
+}
+\end{lstlisting}
+
+\subsection{Przykład z błędem semantycznym}
+
+\begin{lstlisting}[style=ada, caption={Kod Ada z błędem -- dzielenie przez zero}]
+procedure DivByZero is
+    x : Integer := 0;
+    y : Integer := 0;
+begin
+    y := 10 / x;
+end DivByZero;
+\end{lstlisting}
+
+Transpiler wykrywa dzielenie przez zero statycznie i zwraca błąd zamiast generować kod~C:
+
+\begin{lstlisting}[style=bnf, caption={Odpowiedź JSON przy błędzie semantycznym}]
+{
+  "success": false,
+  "errors": [
+    "Linia 5: Blad semantyczny: Wykryto dzielenie przez zero za pomoca operatora '/'"
+  ]
+}
+\end{lstlisting}
+
+% ===================================================================
+\section{Tabela tokenów}
+
+\begin{longtable}{lll}
+\toprule
+\textbf{Token}   & \textbf{Wzorzec / Definicja}        & \textbf{Opis} \\
+\midrule
+\endhead
+\texttt{PROCEDURE}  & \texttt{"procedure"} (case-insensitive) & deklaracja procedury \\
+\texttt{FUNCTION}   & \texttt{"function"}                     & deklaracja funkcji \\
+\texttt{IS}         & \texttt{"is"}                           & poczatek sekcji deklaracji \\
+\texttt{BEGIN}      & \texttt{"begin"}                        & poczatek bloku instrukcji \\
+\texttt{END}        & \texttt{"end"}                          & koniec bloku \\
+\texttt{IF}         & \texttt{"if"}                           & instrukcja warunkowa \\
+\texttt{THEN}       & \texttt{"then"}                         & czesc warunku if \\
+\texttt{ELSE}       & \texttt{"else"}                         & alternatywa if \\
+\texttt{ELSIF}      & \texttt{"elsif"}                        & dodatkowy warunek if \\
+\texttt{WHILE}      & \texttt{"while"}                        & petla while \\
+\texttt{LOOP}       & \texttt{"loop"}                         & blok petli \\
+\texttt{FOR}        & \texttt{"for"}                          & petla for \\
+\texttt{IN}         & \texttt{"in"}                           & operator zakresu w for \\
+\texttt{RETURN}     & \texttt{"return"}                       & zwrot wartosci \\
+\texttt{ARRAY}      & \texttt{"array"}                        & deklaracja tablicy \\
+\texttt{OF}         & \texttt{"of"}                           & typ elementow tablicy \\
+\texttt{ASSIGN}     & \texttt{:=}                             & przypisanie wartosci \\
+\texttt{COLON}      & \texttt{:}                              & separator nazwy i typu \\
+\texttt{RANGE}      & \texttt{..}                             & operator zakresu \\
+\texttt{PLUS}       & \texttt{+}                              & dodawanie \\
+\texttt{MINUS}      & \texttt{-}                              & odejmowanie \\
+\texttt{MUL}        & \texttt{*}                              & mnozenie \\
+\texttt{DIV}        & \texttt{/}                              & dzielenie \\
+\texttt{EQ}         & \texttt{=}                              & rownosc \\
+\texttt{NEQ}        & \texttt{/=}                             & nierownosc \\
+\texttt{LT}         & \texttt{<}                              & mniejsze \\
+\texttt{GT}         & \texttt{>}                              & wieksze \\
+\texttt{LE}         & \texttt{<=}                             & mniejsze lub rowne \\
+\texttt{GE}         & \texttt{>=}                             & wieksze lub rowne \\
+\texttt{SEMICOLON}  & \texttt{;}                              & koniec instrukcji \\
+\texttt{COMMA}      & \texttt{,}                              & separator \\
+\texttt{LPAREN}     & \texttt{(}                              & nawias otwierajacy \\
+\texttt{RPAREN}     & \texttt{)}                              & nawias zamykajacy \\
+\texttt{INTEGER}    & \texttt{[0-9]+}                         & liczba calkowita \\
+\texttt{FLOAT}      & \texttt{[0-9]+.[0-9]+}                  & liczba zmiennoprzecinkowa \\
+\texttt{IDENTIFIER} & \texttt{[a-zA-Z\_][a-zA-Z0-9\_]*}      & nazwa zmiennej/procedury \\
+\texttt{COMMENT}    & \texttt{-{}- \textasciitilde[\textbackslash r\textbackslash n]*} & komentarz (pomijany) \\
+\texttt{WS}         & \texttt{[ \textbackslash t\textbackslash r\textbackslash n]+}  & biale znaki (pomijane) \\
+\bottomrule
+\caption{Tabela tokenow leksera}
+\end{longtable}
+
+\end{document}

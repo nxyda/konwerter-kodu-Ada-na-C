@@ -1,26 +1,35 @@
 # Konwerter kodu Ada -> C
+
 ## Zespół
+
 1. Natalia Poźniak – [npozniak@student.agh.edu.pl]
 2. Małgorzata Poskróbek – [mposkrobek@student.agh.edu.pl]
 
 ## Założenia programu
 
 ### Ogólne cele programu
+
 Program ma za zadanie przekonwertowanie kodu napisanego w języku Ada do kodu w języku C.
+Zgodnie z zasadami języka Ada każdy plik `.adb` zawiera dokładnie jedną jednostkę kompilacji – jedną procedurę lub jedną funkcję.
 
 ### Rodzaj translatora
+
 Transpiler
 
 ### Planowany wynik działania programu
+
 Kod w języku C
 
 ### Planowany język implementacji
+
 Java
 
 ### Generator parsera
+
 ANTLR4
 
 ## Tabela Tokenów
+
 | Nazwa tokenu | Regex / Definicja        | Opis                           |
 | ------------ | ------------------------ | ------------------------------ |
 | PROCEDURE    | `"procedure"`            | deklaracja procedury           |
@@ -37,8 +46,10 @@ ANTLR4
 | FOR          | `"for"`                  | pętla for                      |
 | IN           | `"in"`                   | operator zakresu w for         |
 | RETURN       | `"return"`               | zwrot wartości                 |
-| DECLARE      | `"declare"`              | sekcja deklaracji lokalnych    |
+| ARRAY        | `"array"`                | deklaracja tablicy             |
+| OF           | `"of"`                   | typ elementów tablicy          |
 | ASSIGN       | `":="`                   | przypisanie wartości           |
+| COLON        | `":"`                    | separator nazwy i typu         |
 | RANGE        | `"\.\."`                 | operator zakresu (np. 1 .. 10) |
 | PLUS         | `"+"`                    | dodawanie                      |
 | MINUS        | `"-"`                    | odejmowanie                    |
@@ -60,15 +71,10 @@ ANTLR4
 | COMMENT      | `"--" ~[\r\n]*`          | komentarz jednoliniowy         |
 | WHITESPACE   | `[ \t\r\n]+`             | białe znaki                    |
 
-
 ## Gramatyka
+
 ```bnf
-program ::= subprogram_list
-
-
-subprogram_list ::=
-    subprogram_decl
-    | subprogram_list subprogram_decl
+program ::= subprogram_decl
 
 
 subprogram_decl ::=
@@ -77,7 +83,7 @@ subprogram_decl ::=
 
 procedure_decl ::=
     "procedure" IDENTIFIER "is"
-        declaration_part
+        var_decl_section
     "begin"
         proc_statement_list
     "end" IDENTIFIER ";"
@@ -85,24 +91,18 @@ procedure_decl ::=
 
 function_decl ::=
     "function" IDENTIFIER "return" IDENTIFIER "is"
-        declaration_part
+        var_decl_section
     "begin"
         func_statement_list
     "end" IDENTIFIER ";"
 
 
-declaration_part ::=
-    "declare" declaration_list "begin"
-    | ε
+var_decl_section ::=
+    var_decl*
 
-
-declaration_list ::=
-    declaration
-    | declaration_list declaration
-
-
-declaration ::=
-    IDENTIFIER ":=" expression ";"
+var_decl ::=
+    IDENTIFIER ":" IDENTIFIER [ ":=" expression ] ";"
+    | IDENTIFIER ":" "array" "(" expression ".." expression ")" "of" IDENTIFIER ";"
 
 
 proc_statement_list ::=
@@ -115,6 +115,7 @@ proc_statement ::=
     | if_statement_proc
     | while_statement_proc
     | for_statement_proc
+    | put_line_statement
 
 
 func_statement_list ::=
@@ -128,6 +129,10 @@ func_statement ::=
     | while_statement_func
     | for_statement_func
     | return_statement
+
+
+put_line_statement ::=
+    "Put_Line" "(" expression ")" ";"
 
 
 assignment ::=
@@ -238,13 +243,13 @@ RANGE ::= ".."
 
 ## Technologie
 
-| Warstwa              | Technologia                                  | Wersja  |
-|---------------------|----------------------------------------------|---------|
-| Język implementacji | Java                                         | 17      |
-| Framework webowy    | Spring Boot (spring-boot-starter-web)       | 3.2.3   |
-| Generator parsera   | ANTLR4                                       | 4.13.1  |
-| System budowania    | Apache Maven                                | ---     |
-| Frontend            | HTML + Bootstrap 5.3 + vanilla JS            | ---     |
+| Warstwa             | Technologia                           | Wersja |
+| ------------------- | ------------------------------------- | ------ |
+| Język implementacji | Java                                  | 17     |
+| Framework webowy    | Spring Boot (spring-boot-starter-web) | 3.2.3  |
+| Generator parsera   | ANTLR4                                | 4.13.1 |
+| System budowania    | Apache Maven                          | ---    |
+| Frontend            | HTML + Bootstrap 5.3 + vanilla JS     | ---    |
 
 ## Architektura systemu
 
@@ -254,10 +259,10 @@ Pipeline przetwarzania kodu przebiega przez cztery etapy:
    zamienia strumień znaków na sekwencję tokenów.
 
 2. **Analiza składniowa** – `AdaParser` (generowany z `AdaParser.g4`)  
-   buduje drzewo rozbioru (*ParseTree*).
+   buduje drzewo rozbioru (_ParseTree_).
 
 3. **Analiza semantyczna i generowanie kodu** – `AdaToCVisitor`  
-   przechodzi drzewo metodą *Visitor* i produkuje kod C.
+   przechodzi drzewo metodą _Visitor_ i produkuje kod C.
 
 4. **Wyjście** – tekst kodu C zwracany do wywołującego  
    (plik `.c` w trybie CLI, odpowiedź JSON w trybie web).
@@ -267,6 +272,7 @@ Pipeline przetwarzania kodu przebiega przez cztery etapy:
 # Ada → C Transpiler
 
 Projekt to transpiler języka **Ada do C** z dwoma trybami działania:
+
 - aplikacja webowa (Spring Boot REST API),
 - tryb CLI do kompilacji plików `.adb`.
 
@@ -288,6 +294,7 @@ public class Application {
 Main
 Punkt wejściowy trybu CLI.
 Odpowiada za:
+
 - przyjęcie listy plików .adb
 - kompilację każdego pliku przez Compiler.compileFile()
 - zapis wyników do katalogu out/
@@ -298,6 +305,7 @@ Compiler
 
 Fasada pipeline’u opartego o ANTLR4 odpowiedzialna za kompilację plików.
 Zakres odpowiedzialności:
+
 - wczytywanie plików (CharStreams.fromFileName)
 - konfiguracja leksera i parsera
 - obsługa błędów składniowych (ErrorListener)
@@ -314,20 +322,20 @@ POST /api/compile
 
 Wejście:
 {
-  "code": "..."
+"code": "..."
 }
 
 Wyjście:
 Sukces:
 {
-  "success": true,
-  "cCode": "..."
+"success": true,
+"cCode": "..."
 }
 
 Błąd:
 {
-  "success": false,
-  "errors": []
+"success": false,
+"errors": []
 }
 
 AdaToCVisitor
@@ -335,20 +343,25 @@ Główna klasa transpiler’a.
 Dziedziczy po:
 AdaParserBaseVisitor<String>
 Każda metoda visitXxx():
+
 - odpowiada regule gramatycznej
 - zwraca fragment kodu C jako String
 
 Zarządzanie zakresami
 
 Struktury:
+
 - scopeTypes: Map<String, CType> – mapowanie zmiennych na typy
 - declaredVars: Set<String> – zmienne w bieżącym scope
+
 Operacje:
+
 - pushScope() – wejście do bloku
 - popScope() – wyjście z bloku
 
 System typów
 Wewnętrzny enum `CType` definiuje podstawowe typy używane w systemie:
+
 ```java
 private enum CType {
     INT("int"),
@@ -359,52 +372,53 @@ private enum CType {
 
 Mapowanie typów Ada → C
 
-| Typ Ada                           | Typ C    |
-|----------------------------------|----------|
-| Integer                          | int      |
-| Natural                          | int      |
-| Positive                         | int      |
-| Float                            | double   |
-| Boolean                          | bool     |
+| Typ Ada  | Typ C  |
+| -------- | ------ |
+| Integer  | int    |
+| Natural  | int    |
+| Positive | int    |
+| Float    | double |
+| Boolean  | bool   |
 
 Generowanie kodu
 
 Wcięcia zarządzane są zmienną indentLevel.
 Metoda indent() generuje odpowiedni łańcuch białych znaków.
 
-
 ## Obsługiwane konstrukcje języka Ada
 
-| Konstrukcja Ada                          | Odpowiednik C |
-|------------------------------------------|----------------|
-| `procedure P is ... end P;`              | `void P() { ... }` |
-| `procedure Main is ...`                  | `int main() { ... return 0; }` |
-| `function F return T is ...`            | `T F() { ... }` |
-| `declare X := E;`                        | deklaracja zmiennej lokalnej |
-| `X := E;`                                | `X = E;` |
-| `if ... then ... elsif ... else ... end if;` | `if (...) { ... } else if { ... } else { ... }` |
-| `while ... loop ... end loop;`           | `while (...) { ... }` |
-| `for I in A .. B loop ...`              | `for (int I = A; I <= B; I++) { }` |
-| `return E;`                              | `return E;` |
-| `Put_Line(E);`                           | `printf("%d\n", E)` / `%f` |
-| `A(I)`, `A(I,J)`                         | `A[I]`, `A[I][J]` |
-| `=`, `/=`                                | `==`, `!=` |
+| Konstrukcja Ada                              | Odpowiednik C                                     |
+| -------------------------------------------- | ------------------------------------------------- |
+| `procedure P is ... end P;`                  | `void P() { ... }`                                |
+| `procedure Main is ...`                      | `int main() { ... return 0; }`                    |
+| `function F return T is ...`                 | `T F() { ... }`                                   |
+| `X : Integer := E;`                          | `int X = E;` (deklaracja ze typem)                |
+| `X : Float;`                                 | `double X;` (deklaracja bez wartości początkowej) |
+| `X : array (A..B) of Integer;`               | `int X[B+1];` (tablica 1-indeksowana)             |
+| `X := E;`                                    | `X = E;`                                          |
+| `if ... then ... elsif ... else ... end if;` | `if (...) { ... } else if { ... } else { ... }`   |
+| `while ... loop ... end loop;`               | `while (...) { ... }`                             |
+| `for I in A .. B loop ...`                   | `for (int I = A; I <= B; I++) { }`                |
+| `return E;`                                  | `return E;`                                       |
+| `Put_Line(E);`                               | `printf("%d\n", E)` / `%f`                        |
+| `A(I)`, `A(I,J)`                             | `A[I]`, `A[I][J]`                                 |
+| `=`, `/=`                                    | `==`, `!=`                                        |
 
 ## Analiza semantyczna
 
-Klasa `AdaToCVisitor` przeprowadza analizę semantyczną podczas przechodzenia drzewa składniowego. Wykryte błędy są zbierane w liście `semanticErrors` i zwracane po zakończeniu procesu kompilacji.
+Klasa `AdaToCVisitor` przeprowadza analizę semantyczną podczas przechodzenia drzewa składniowego. Wykryte błędy są zbierane w liście `semanticErrors` i zwracane po zakończeniu procesu kompilacji. Każdy komunikat o błędzie zawiera numer linii w oryginalnym kodzie Ada (np. `Linia 5: Undeclared variable used: x`).
 
 ## Wykrywane błędy semantyczne
 
-| Rodzaj błędu | Przykład wyzwalający |
-|--------------|----------------------|
-| Użycie niezadeklarowanej zmiennej | `x := y + 1` (y nieznane) |
-| Niezgodność typów w przypisaniu | przypisanie `double` do `int` |
-| Operacja arytmetyczna na `bool` | `True + 1` |
-| Dzielenie przez zero (statyczne) | `x := a / 0;` |
-| Nieprawidłowy typ indeksu tablicy | `A(1.5)` |
-| Indeks tablicy poza zakresem | `A(10)` przy rozmiarze 5 |
-| Pusta funkcja (brak `return`) | `function F return Integer is begin end F;` |
+| Rodzaj błędu                      | Przykład wyzwalający                        |
+| --------------------------------- | ------------------------------------------- |
+| Użycie niezadeklarowanej zmiennej | `x := y + 1` (y nieznane)                   |
+| Niezgodność typów w przypisaniu   | przypisanie `double` do `int`               |
+| Operacja arytmetyczna na `bool`   | `True + 1`                                  |
+| Dzielenie przez zero (statyczne)  | `x := a / 0;`                               |
+| Nieprawidłowy typ indeksu tablicy | `A(1.5)`                                    |
+| Indeks tablicy poza zakresem      | `A(10)` przy rozmiarze 5                    |
+| Pusta funkcja (brak `return`)     | `function F return Integer is begin end F;` |
 
 ## Interfejs webowy
 
@@ -428,12 +442,15 @@ Aby uruchomić wersję webową projektu, należy użyć Maven:
 ```bash
 mvn spring-boot:run
 ```
+
 Po uruchomieniu aplikacja będzie dostępna pod adresem:
 
 http://localhost:8080
 
 ### Tryb CLI
+
 Projekt można również uruchomić w trybie konsolowym:
+
 ```bash
 mvn package -DskipTests
 java -jar target/ada-to-c-1.0.jar examples/factorial.adb
@@ -451,35 +468,56 @@ W przypadku błędów program wypisuje komunikaty na stderr i kończy działanie
 
 ```ada
 -- examples/factorial.adb
-procedure Main is
-declare
-    n := 5;
-    result := 1;
+procedure Factorial is
+    n    : Integer := 5;
+    fact : Integer := 1;
 begin
     for i in 1 .. n loop
-        result := result * i;
+        fact := fact * i;
     end loop;
-    Put_Line(result);
-end Main;
+end Factorial;
 ```
 
 ### Wygenerowany kod C
-```C
+
+```c
 // out/factorial.c
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
 
-int main() {
+void Factorial() {
     int n = 5;
-    int result = 1;
-
+    int fact = 1;
     for (int i = 1; i <= n; i++) {
-        result = result * i;
+        fact = fact * i;
     }
+}
 
-    printf("%d\n", result);
+int main() {
+    Factorial();
     return 0;
 }
 ```
 
+### Przykład z błędem semantycznym
+
+```ada
+procedure DivByZero is
+    x : Integer := 0;
+    y : Integer := 0;
+begin
+    y := 10 / x;
+end DivByZero;
+```
+
+Transpiler wykrywa dzielenie przez zero statycznie i zwraca błąd zamiast generować kod C:
+
+```json
+{
+  "success": false,
+  "errors": [
+    "Linia 5: Błąd semantyczny: Wykryto dzielenie przez zero za pomocą operatora '/'"
+  ]
+}
+```

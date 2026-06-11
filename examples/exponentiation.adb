@@ -1,9 +1,8 @@
 procedure Exponentiation is
+    base     : Integer := 2;
+    exponent : Integer := 5;
+    result   : Integer := 1;
 begin
-    base := 2;
-    exponent := 5;
-    result := 1;
-
     for i in 1 .. exponent loop
         result := result * base;
     end loop;

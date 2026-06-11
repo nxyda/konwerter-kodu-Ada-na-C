@@ -3,11 +3,7 @@ parser grammar AdaParser;
 options { tokenVocab=AdaLexer; }
 
 program
-    : subprogram_list
-    ;
-
-subprogram_list
-    : subprogram_decl+
+    : subprogram_decl
     ;
 
 subprogram_decl
@@ -18,7 +14,7 @@ subprogram_decl
 
 procedure_decl
     : PROCEDURE IDENTIFIER IS
-        declaration_part?
+        var_decl_section
         BEGIN
             proc_statement_list?
         END IDENTIFIER SEMICOLON
@@ -28,7 +24,7 @@ procedure_decl
 
 function_decl
     : FUNCTION IDENTIFIER RETURN IDENTIFIER IS
-        declaration_part?
+        var_decl_section
         BEGIN
             func_statement_list?
         END IDENTIFIER SEMICOLON
@@ -36,17 +32,13 @@ function_decl
 
 
 
-declaration_part
-    : DECLARE declaration_list BEGIN
-    |
+var_decl_section
+    : var_decl*
     ;
 
-declaration_list
-    : declaration+
-    ;
-
-declaration
-    : IDENTIFIER ASSIGN expression SEMICOLON
+var_decl
+    : IDENTIFIER COLON IDENTIFIER (ASSIGN expression)? SEMICOLON
+    | IDENTIFIER COLON ARRAY LPAREN expression RANGE expression RPAREN OF IDENTIFIER SEMICOLON
     ;
 
 

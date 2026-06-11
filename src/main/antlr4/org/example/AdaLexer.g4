@@ -14,9 +14,11 @@ LOOP       : L O O P ;
 FOR        : F O R ;
 IN         : I N ;
 RETURN     : R E T U R N ;
-DECLARE    : D E C L A R E ;
+ARRAY      : A R R A Y ;
+OF         : O F ;
 
 ASSIGN : ':=' ;
+COLON  : ':' ;
 RANGE  : '..' ;
 
 PLUS   : '+' ;

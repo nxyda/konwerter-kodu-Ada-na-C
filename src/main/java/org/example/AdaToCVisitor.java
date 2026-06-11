@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.RuleNode;
 
 public class AdaToCVisitor extends AdaParserBaseVisitor<String> {
@@ -37,6 +38,7 @@ public class AdaToCVisitor extends AdaParserBaseVisitor<String> {
     private final Deque<Set<String>> declaredVars = new ArrayDeque<>();
 
     private final Map<String, Integer> arraySizes = new HashMap<>();
+    private final Map<String, Integer> arrayLowerBounds = new HashMap<>();
 
     private String indent() {
         return "    ".repeat(indentLevel);
@@ -45,6 +47,12 @@ public class AdaToCVisitor extends AdaParserBaseVisitor<String> {
     private void semanticError(String message) {
         hasSemanticError = true;
         semanticErrors.add(message);
+    }
+
+    private void semanticError(String message, ParserRuleContext ctx) {
+        hasSemanticError = true;
+        int line = ctx.getStart().getLine();
+        semanticErrors.add("Linia " + line + ": " + message);
     }
 
     public boolean hasSemanticErrors() {
@@ -133,7 +141,7 @@ public class AdaToCVisitor extends AdaParserBaseVisitor<String> {
 
         String op = ctx.getChild(1).getText();
 
-        return checkArithmetic(left, right, op, isZeroValue(ctx.term()));
+        return checkArithmetic(left, right, op, isZeroValue(ctx.term()), ctx);
     }
 
     private CType inferType(AdaParser.TermContext ctx) {
@@ -148,7 +156,7 @@ public class AdaToCVisitor extends AdaParserBaseVisitor<String> {
 
         String op = ctx.getChild(1).getText();
 
-        return checkArithmetic(left, right, op, isZeroValue(ctx.factor()));
+        return checkArithmetic(left, right, op, isZeroValue(ctx.factor()), ctx);
     }
 
     private CType inferType(AdaParser.FactorContext ctx) {
@@ -174,7 +182,7 @@ public class AdaToCVisitor extends AdaParserBaseVisitor<String> {
             CType known = getType(name);
 
             if (known == null) {
-                semanticError("Undeclared variable used: " + name);
+                semanticError("Undeclared variable used: " + name, ctx);
                 return CType.INT;
             }
 
@@ -203,26 +211,16 @@ public class AdaToCVisitor extends AdaParserBaseVisitor<String> {
         sb.append("#include <stdbool.h>\n");
         sb.append("#include <stdlib.h>\n\n");
 
-        if (ctx.subprogram_list() != null) {
-            sb.append(visit(ctx.subprogram_list()));
-        }
+        sb.append(visit(ctx.subprogram_decl()));
 
         if (firstProcedureName != null && !firstProcedureName.equalsIgnoreCase("Main")) {
-            sb.append("\n");
-            sb.append("int main() {\n");
+            sb.append("\nint main() {\n");
             sb.append("    ").append(firstProcedureName).append("();\n");
             sb.append("    return 0;\n");
             sb.append("}\n");
         }
 
         return sb.toString();
-    }
-
-    @Override
-    public String visitSubprogram_list(AdaParser.Subprogram_listContext ctx) {
-        return ctx.subprogram_decl().stream()
-                .map(this::visit)
-                .collect(Collectors.joining("\n"));
     }
 
     @Override
@@ -243,9 +241,7 @@ public class AdaToCVisitor extends AdaParserBaseVisitor<String> {
 
         pushScope();
         indentLevel++;
-        if (ctx.declaration_part() != null) {
-            sb.append(visit(ctx.declaration_part()));
-        }
+        sb.append(visit(ctx.var_decl_section()));
         if (ctx.proc_statement_list() != null) {
             sb.append(visit(ctx.proc_statement_list()));
         }
@@ -269,16 +265,13 @@ public class AdaToCVisitor extends AdaParserBaseVisitor<String> {
 
         pushScope();
         indentLevel++;
-        
-        if (ctx.declaration_part() != null) {
-            sb.append(visit(ctx.declaration_part()));
-        }
+        sb.append(visit(ctx.var_decl_section()));
 
         if (ctx.func_statement_list() == null || 
             ctx.func_statement_list().func_statement() == null || 
             ctx.func_statement_list().func_statement().isEmpty()) {
             
-            semanticError("Błąd semantyczny: Funkcja '" + functionName + "' nie może być pusta. Wymagany jest 'return'.");
+            semanticError("Błąd semantyczny: Funkcja '" + functionName + "' nie może być pusta. Wymagany jest 'return'.", ctx);
         }
 
         if (ctx.func_statement_list() != null) {
@@ -293,29 +286,54 @@ public class AdaToCVisitor extends AdaParserBaseVisitor<String> {
     }
 
     @Override
-    public String visitDeclaration_part(AdaParser.Declaration_partContext ctx) {
-        if (ctx.declaration_list() != null) {
-            return visit(ctx.declaration_list());
-        }
-        return "";
-    }
-
-    @Override
-    public String visitDeclaration_list(AdaParser.Declaration_listContext ctx) {
-        return ctx.declaration().stream()
+    public String visitVar_decl_section(AdaParser.Var_decl_sectionContext ctx) {
+        return ctx.var_decl().stream()
                 .map(this::visit)
                 .collect(Collectors.joining());
     }
 
     @Override
-    public String visitDeclaration(AdaParser.DeclarationContext ctx) {
-        String varName = ctx.IDENTIFIER().getText();
-        String expression = visit(ctx.expression());
-        CType inferred = inferType(ctx.expression());
-        
-        setType(varName, inferred);
+    public String visitVar_decl(AdaParser.Var_declContext ctx) {
+        String varName = ctx.IDENTIFIER(0).getText();
+
+        // array declaration: X : array (1..N) of Integer;
+        if (ctx.ARRAY() != null) {
+            String elemType = ctx.IDENTIFIER(1).getText();
+            CType cType = mapAdaTypeToCType(elemType);
+            String from = visit(ctx.expression(0));
+            String to = visit(ctx.expression(1));
+            int lower = 0, upper = 0;
+            try {
+                lower = Integer.parseInt(from);
+                upper = Integer.parseInt(to);
+                arraySizes.put(varName, upper);
+                arrayLowerBounds.put(varName, lower);
+            } catch (NumberFormatException ignored) {}
+            setType(varName, cType);
+            markDeclared(varName);
+            // C array sized upper+1 so Ada 1-based indices fit without offset
+            String sizeExpr = upper > 0 ? String.valueOf(upper + 1) : (to + " + 1");
+            return indent() + cType.cName + " " + varName + "[" + sizeExpr + "];\n";
+        }
+
+        // regular declaration: X : Integer := E;
+        String adaType = ctx.IDENTIFIER(1).getText();
+        CType cType = mapAdaTypeToCType(adaType);
+        setType(varName, cType);
         markDeclared(varName);
-        return indent() + inferred.cName + " " + varName + " = " + expression + ";\n";
+        if (!ctx.expression().isEmpty()) {
+            return indent() + cType.cName + " " + varName + " = " + visit(ctx.expression(0)) + ";\n";
+        }
+        return indent() + cType.cName + " " + varName + ";\n";
+    }
+
+    private CType mapAdaTypeToCType(String adaType) {
+        return switch (adaType.toLowerCase()) {
+            case "float" -> CType.DOUBLE;
+            case "boolean" -> CType.BOOL;
+            case "integer", "natural", "positive" -> CType.INT;
+            default -> CType.INT;
+        };
     }
 
     @Override
@@ -340,7 +358,7 @@ public class AdaToCVisitor extends AdaParserBaseVisitor<String> {
     public String visitAssignment(AdaParser.AssignmentContext ctx) {
 
         if (!isValidLvalue(ctx.lvalue())) {
-            semanticError("Invalid lvalue in assignment: " + ctx.lvalue().getText());
+            semanticError("Invalid lvalue in assignment: " + ctx.lvalue().getText(), ctx);
             return indent() + "/* invalid assignment */;\n";
         }
 
@@ -353,8 +371,8 @@ public class AdaToCVisitor extends AdaParserBaseVisitor<String> {
             CType lhsType = getType(name);
 
             if (lhsType != null && rhsType != null && lhsType != rhsType) {
-                semanticError("Type mismatch in assignment: cannot assign " 
-                + rhsType + " to " + lhsType + " for variable " + name);
+                semanticError("Type mismatch in assignment: cannot assign "
+                + rhsType + " to " + lhsType + " for variable " + name, ctx);
             }
 
             if (!isDeclared(name)) {
@@ -603,7 +621,10 @@ public class AdaToCVisitor extends AdaParserBaseVisitor<String> {
         if (ctx.array_access() != null) {
             return visit(ctx.array_access());
         }
-        return ctx.getText();
+        String text = ctx.getText();
+        if (text.equalsIgnoreCase("true")) return "true";
+        if (text.equalsIgnoreCase("false")) return "false";
+        return text;
     }
 
     @Override
@@ -627,20 +648,20 @@ public class AdaToCVisitor extends AdaParserBaseVisitor<String> {
         return result.toString();
     }
 
-    private CType checkArithmetic(CType a, CType b, String op, boolean isRightZero) {
+    private CType checkArithmetic(CType a, CType b, String op, boolean isRightZero, ParserRuleContext ctx) {
         if (a == null || b == null) return CType.INT;
 
         if (a == CType.BOOL || b == CType.BOOL) {
-            semanticError("Invalid arithmetic operation: " + a + " " + op + " " + b);
+            semanticError("Invalid arithmetic operation: " + a + " " + op + " " + b, ctx);
             return CType.INT;
         }
         if ((op.equals("/") || op.equalsIgnoreCase("div") || op.equalsIgnoreCase("mod")) && isRightZero) {
-            semanticError("Błąd semantyczny: Wykryto dzielenie przez zero za pomocą operatora '" + op + "'");
+            semanticError("Błąd semantyczny: Wykryto dzielenie przez zero za pomocą operatora '" + op + "'", ctx);
         }
 
         if (op.equals("+") || op.equals("-") || op.equals("*") || op.equals("/")) {
             if (a == CType.BOOL || b == CType.BOOL) {
-                semanticError("Cannot use arithmetic op on BOOL");
+                semanticError("Cannot use arithmetic op on BOOL", ctx);
             }
         }
 
@@ -667,12 +688,10 @@ public class AdaToCVisitor extends AdaParserBaseVisitor<String> {
 
             if (type != CType.INT) {
                 semanticError("Niepoprawny typ indeksu tablicy: " + expr.getText()
-                        + " (oczekiwano INTEGER, dostano " + type + ")");
+                        + " (oczekiwano INTEGER, dostano " + type + ")", expr);
             }
         }
-    }   
-
-
+    }
 
     private void checkIndexRange(String arrayName, AdaParser.ExpressionContext expr) {
         Integer size = arraySizes.get(arrayName);
@@ -684,10 +703,11 @@ public class AdaToCVisitor extends AdaParserBaseVisitor<String> {
 
         try {
             int value = Integer.parseInt(expr.getText());
+            int lower = arrayLowerBounds.getOrDefault(arrayName, 0);
 
-            if (value < 0 || value >= size) {
+            if (value < lower || value > size) {
                 semanticError("Indeks poza zakresem tablicy: " + value +
-                        " (dozwolony zakres 0.." + (size - 1) + ")");
+                        " (dozwolony zakres " + lower + ".." + size + ")", expr);
             }
 
         } catch (NumberFormatException e) {
